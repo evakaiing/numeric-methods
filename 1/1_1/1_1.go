@@ -14,7 +14,6 @@ func LUDecomposition(A [][]float64) ([]int, int, error) {
 	swaps := 0
 
 	for col := 0; col < n; col++ {
-		// диагональное преобладание
 		pivotRow := col
 		maxVal := math.Abs(A[col][col])
 		for row := col + 1; row < n; row++ {
@@ -38,7 +37,7 @@ func LUDecomposition(A [][]float64) ([]int, int, error) {
 		for row := col + 1; row < n; row++ {
 			A[row][col] /= A[col][col] // коэффициент l_{row,col}
 
-			for k := col + 1; k < n; k++ { // по столбцам правее
+			for k := col + 1; k < n; k++ { // правее
 				A[row][k] -= A[row][col] * A[col][k]
 			}
 		}

@@ -10,7 +10,6 @@ const (
 	epsilon      = 1e-6
 )
 
-// SeidelIterations решает СЛАУ методом Зейделя.
 func SeidelIterations(A [][]float64, b []float64, epsilon float64) ([]float64, int, error) {
 	n := len(A)
 

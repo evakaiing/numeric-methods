@@ -50,31 +50,29 @@ func qrDecomposition(A [][]float64) ([][]float64, [][]float64) {
 	R := copyMatrix(A)
 	Q := makeE(n)
 
-	// Выполняем n-1 шагов (по числу столбцов, подлежащих обнулению)
 	for k := 0; k < n-1; k++ {
-		// Считаем норму ||b||_2 для k-го столбца начиная с элемента k
+		// v = b + sign(b_1)*||b||*e_1
+		// ||b|| = sum(b_i^2)^1/2
 		sum := 0.0
 		for i := k; i < n; i++ {
 			sum += R[i][k] * R[i][k]
 		}
 		normB := math.Sqrt(sum)
 
-		// Строим вектор v по формуле 1.30: v = b + sign(b_1)*||b||*e_1
 		v := make([]float64, n)
 		for i := k; i < n; i++ {
 			v[i] = R[i][k]
 		}
 		v[k] = v[k] + sign(R[k][k])*normB
 
-		// Считаем v^T * v (скалярное произведение)
 		vTv := 0.0
 		for i := k; i < n; i++ {
 			vTv += v[i] * v[i]
 		}
 
-		// Строим матрицу Хаусхолдера H = E - 2*(v*v^T)/(v^T*v)
+		// H = E - 2*(v*v^T)/(v^T*v)
 		H := makeE(n)
-		if vTv > 1e-12 { // Защита от деления на ноль, если столбец уже состоит из нулей
+		if vTv > 1e-12 {
 			for i := k; i < n; i++ {
 				for j := k; j < n; j++ {
 					H[i][j] -= 2.0 * v[i] * v[j] / vTv
@@ -82,24 +80,21 @@ func qrDecomposition(A [][]float64) ([][]float64, [][]float64) {
 			}
 		}
 
-		// R = H * R
 		R = multiply(H, R)
-		// Q = Q * H (т.к. H ортогональна и симметрична, транспонирование не нужно)
 		Q = multiply(Q, H)
 	}
 	return Q, R
 }
 
-// checkConvergence проверяет критерий остановки для вещественных корней
-func checkConvergence(A [][]float64, eps float64) bool {
+
+func check(A [][]float64, eps float64) bool {
 	n := len(A)
 	for m := 0; m < n-1; m++ {
 		sum := 0.0
 		for l := m + 1; l < n; l++ {
 			sum += A[l][m] * A[l][m]
 		}
-		// Если для какого-то столбца норма поддиагональных элементов больше eps
-		// Значит матрица еще не стала треугольной/квазитреугольной
+
 		if math.Sqrt(sum) > eps {
 			return false
 		}
@@ -107,8 +102,42 @@ func checkConvergence(A [][]float64, eps float64) bool {
 	return true
 }
 
+
+func getSZ(A [][]float64, eps float64) []complex128 {
+	n := len(A)
+	res := make([]complex128, 0, n)
+
+	i := 0
+	for i < n {
+		if i == n-1 || math.Abs(A[i+1][i]) < eps {
+			res = append(res, complex(A[i][i], 0))
+			i++
+		} else {
+			a := A[i][i]
+			b := A[i][i+1]
+			c := A[i+1][i]
+			d := A[i+1][i+1]
+
+			tr := a + d
+			det := a*d - b*c
+			D := tr*tr - 4*det
+
+			if D >= 0 {
+				l1 := (tr + math.Sqrt(D)) / 2
+				l2 := (tr - math.Sqrt(D)) / 2
+				res = append(res, complex(l1, 0), complex(l2, 0))
+			} else {
+				re := tr / 2
+				im := math.Sqrt(-D) / 2
+				res = append(res, complex(re, im), complex(re, -im))
+			}
+			i += 2
+		}
+	}
+	return res
+}
+
 func main() {
-	// Матрица из задания (картинка)
 	A_k := [][]float64{
 		{5, -5, -6},
 		{-1, -8, -5},
@@ -117,41 +146,40 @@ func main() {
 
 	eps := 0.01
 	n := len(A_k)
-	maxIters := 50 // Ограничитель на случай зацикливания из-за комплексных корней
+	maxIters := 50
 
-	fmt.Printf("Запуск QR-алгоритма (eps = %v)\n", eps)
-	fmt.Println("--------------------------------------------------")
+	fmt.Printf("Start (eps = %v)\n", eps)
 
 	k := 0
 	for {
-		// Шаг 1: QR разложение A^{(k)} = Q^{(k)} * R^{(k)}
 		Q_k, R_k := qrDecomposition(A_k)
 
-		// Шаг 2: Перемножение в обратном порядке A^{(k+1)} = R^{(k)} * Q^{(k)}
 		A_k = multiply(R_k, Q_k)
 		k++
 
-		// Проверка критерия останова (упрощенная, для полностью сошедшейся формы)
-		// В реальной задаче с комплексными корнями этот критерий может никогда не выполниться
-		// для блочной формы 2x2, поэтому мы используем и ограничитель по итерациям.
-		if checkConvergence(A_k, eps) || k >= maxIters {
+		if check(A_k, eps) || k >= maxIters {
 			break
 		}
 	}
 
-	fmt.Printf("Алгоритм остановлен после %d итераций.\n\n", k)
+	fmt.Printf("Iterations num: %d\n\n", k)
 
-	fmt.Println("Итоговая матрица A^{(k)}:")
+	fmt.Println("A^k:")
 	for i := 0; i < n; i++ {
 		for j := 0; j < n; j++ {
-			fmt.Printf("%8.4f ", A_k[i][j])
+			fmt.Printf("%.4f ", A_k[i][j])
 		}
 		fmt.Println()
 	}
 
-	// Извлечение вещественных собственных значений (диагональные элементы)
-	fmt.Println("\nСобственные значения (вещественные части лежат на диагонали):")
-	for i := 0; i < n; i++ {
-		fmt.Printf("λ_%d ≈ %.4f\n", i+1, A_k[i][i])
+	sz := getSZ(A_k, eps)
+
+	fmt.Println("\nSZ:")
+	for i, lambda := range sz {
+		if imag(lambda) == 0 {
+			fmt.Printf("λ_%d = %.4f\n", i+1, real(lambda))
+		} else {
+			fmt.Printf("λ_%d = %.4f %+.4fi\n", i+1, real(lambda), imag(lambda))
+		}
 	}
 }
